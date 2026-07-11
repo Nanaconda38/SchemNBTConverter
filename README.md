@@ -6,7 +6,7 @@ A cross-platform graphical and command-line tool for batch-converting Minecraft 
 - Litematica `.litematic` files, including multi-region schematics;
 - to vanilla Java Edition structure `.nbt` files.
 
-The converter preserves as much source data as the vanilla structure format allows, including block states, palettes, block entities, entities, and the source Minecraft `DataVersion`.
+The converter preserves as much source data as the vanilla structure format allows, including block states, palettes, block entities, entities, and (by default) the source Minecraft `DataVersion`.
 
 Large structures can be split automatically into configurable chunks. The default is `48 × 48 × 48`, which is suitable for vanilla structure blocks. A JSON manifest records the position and dimensions of every generated chunk.
 
@@ -19,6 +19,7 @@ The interface is entirely in English and includes:
 - drag and drop when TkDND is available;
 - folder-tree preservation in the output directory;
 - conversion progress and a detailed activity log;
+- a live Minecraft version menu for selecting the target `DataVersion`;
 - a prominent conversion button and direct access to the output folder.
 
 ## Windows quick start
@@ -195,6 +196,10 @@ The older MCEdit `.schematic` format is not supported.
 When regions overlap, the last region in the file replaces earlier blocks at the same positions.
 
 ## Conversion options
+
+### Target Minecraft version
+
+The GUI loads the current Java Edition version list from Mojang's version manifest and matches it to the corresponding `DataVersion`. **Use source version** keeps the value stored in the input file. Selecting another version changes the output `DataVersion`; block names and block states are preserved as-is and are not upgraded or downgraded.
 
 ### Include air blocks
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .errors import ConversionError
+from .versions import fetch_versions
 from .writer import convert_file
 
 try:
@@ -60,6 +61,9 @@ class ConverterApp:
         self.overwrite_var = tk.BooleanVar(value=False)
         self.preserve_tree_var = tk.BooleanVar(value=True)
         self.max_size_var = tk.IntVar(value=48)
+        self.target_version_var = tk.StringVar(value="Use source version (recommended)")
+        self.version_values: dict[str, int] = {}
+        self.version_loading = False
         self.status_var = tk.StringVar(value="Ready")
         self.file_count_var = tk.StringVar(value="0 files")
         self.progress_text_var = tk.StringVar(value="0 / 0")
@@ -68,6 +72,7 @@ class ConverterApp:
         self._configure_styles()
         self._build_ui()
         self._bind_shortcuts()
+        self._load_versions()
         self.root.after(100, self._poll_messages)
 
     def _configure_fonts(self) -> None:
@@ -372,11 +377,36 @@ class ConverterApp:
             wraplength=350,
         ).grid(row=1, column=0, sticky="w", pady=(4, 16))
 
-        ttk.Label(settings_card, text="Output directory", style="CardValue.TLabel").grid(
+        ttk.Label(settings_card, text="Target Minecraft version", style="CardValue.TLabel").grid(
             row=2, column=0, sticky="w", pady=(0, 6)
         )
+        version_row = ttk.Frame(settings_card, style="Card.TFrame")
+        version_row.grid(row=3, column=0, sticky="ew")
+        version_row.columnconfigure(0, weight=1)
+        self.version_combo = ttk.Combobox(
+            version_row,
+            textvariable=self.target_version_var,
+            state="readonly",
+            values=("Use source version (recommended)",),
+        )
+        self.version_combo.grid(row=0, column=0, sticky="ew")
+        ttk.Button(
+            version_row,
+            text="Refresh",
+            style="Secondary.TButton",
+            command=self._load_versions,
+        ).grid(row=0, column=1, padx=(8, 0))
+        ttk.Label(
+            settings_card,
+            text="Sets DataVersion only; block states are kept as-is.",
+            style="CardText.TLabel",
+        ).grid(row=4, column=0, sticky="w", pady=(4, 10))
+
+        ttk.Label(settings_card, text="Output directory", style="CardValue.TLabel").grid(
+            row=5, column=0, sticky="w", pady=(0, 6)
+        )
         output_row = ttk.Frame(settings_card, style="Card.TFrame")
-        output_row.grid(row=3, column=0, sticky="ew")
+        output_row.grid(row=6, column=0, sticky="ew")
         output_row.columnconfigure(0, weight=1)
         ttk.Entry(output_row, textvariable=self.output_var, style="Modern.TEntry").grid(
             row=0, column=0, sticky="ew"
@@ -389,7 +419,7 @@ class ConverterApp:
         )
 
         size_row = ttk.Frame(settings_card, style="Card.TFrame")
-        size_row.grid(row=4, column=0, sticky="ew", pady=(16, 4))
+        size_row.grid(row=7, column=0, sticky="ew", pady=(16, 4))
         size_row.columnconfigure(0, weight=1)
         ttk.Label(size_row, text="Maximum size per axis", style="CardValue.TLabel").grid(
             row=0, column=0, sticky="w"
@@ -407,10 +437,10 @@ class ConverterApp:
             settings_card,
             text="48 is recommended for vanilla structure blocks.",
             style="CardText.TLabel",
-        ).grid(row=5, column=0, sticky="w", pady=(0, 10))
+        ).grid(row=8, column=0, sticky="w", pady=(0, 10))
 
         checks = ttk.Frame(settings_card, style="Card.TFrame")
-        checks.grid(row=6, column=0, sticky="ew")
+        checks.grid(row=9, column=0, sticky="ew")
         ttk.Checkbutton(
             checks,
             text="Automatically split oversized structures",
@@ -437,7 +467,7 @@ class ConverterApp:
         ).pack(anchor="w", fill="x")
 
         action_area = ttk.Frame(settings_card, style="Card.TFrame")
-        action_area.grid(row=7, column=0, sticky="ew", pady=(14, 0))
+        action_area.grid(row=10, column=0, sticky="ew", pady=(14, 0))
         action_area.columnconfigure(0, weight=1)
         self.convert_button = ttk.Button(
             action_area,
@@ -503,6 +533,25 @@ class ConverterApp:
         self.root.bind("<Control-Shift-O>", lambda _event: self._add_folder())
         self.root.bind("<Delete>", lambda _event: self._remove_selected())
         self.root.bind("<F5>", lambda _event: self._start_conversion())
+
+    def _load_versions(self) -> None:
+        if self.version_loading:
+            return
+        self.version_loading = True
+        self.version_combo.configure(state="disabled")
+        self.target_version_var.set("Loading Minecraft versions…")
+        threading.Thread(target=self._fetch_versions, daemon=True).start()
+
+    def _fetch_versions(self) -> None:
+        try:
+            versions = fetch_versions()
+        except Exception as exc:
+            self.messages.put(("versions_error", str(exc)))
+        else:
+            self.messages.put(("versions", versions))
+
+    def _selected_data_version(self) -> int | None:
+        return self.version_values.get(self.target_version_var.get())
 
     def _update_file_count(self) -> None:
         count = self.file_list.size()
@@ -639,6 +688,7 @@ class ConverterApp:
             "include_air": bool(self.air_var.get()),
             "overwrite": bool(self.overwrite_var.get()),
             "preserve_tree": bool(self.preserve_tree_var.get()),
+            "target_data_version": self._selected_data_version(),
         }
         thread = threading.Thread(
             target=self._worker,
@@ -652,7 +702,7 @@ class ConverterApp:
         jobs: list[tuple[Path, Path | None]],
         output: Path,
         max_size: int,
-        options: dict[str, bool],
+        options: dict[str, object],
     ) -> None:
         success = 0
         errors: list[str] = []
@@ -669,6 +719,7 @@ class ConverterApp:
                     include_air=options["include_air"],
                     overwrite=options["overwrite"],
                     source_root=effective_root,
+                    target_data_version=options["target_data_version"],
                     progress=lambda msg: self.messages.put(("log", msg)),
                 )
                 success += 1
@@ -695,6 +746,25 @@ class ConverterApp:
                     index, total = payload
                     self.progress.configure(value=int(index))
                     self.progress_text_var.set(f"{index} / {total}")
+                elif kind == "versions":
+                    self.version_values = {
+                        f"{version} ({kind}, DataVersion {data_version})": data_version
+                        for version, kind, data_version in payload
+                    }
+                    labels = ["Use source version (recommended)", *self.version_values]
+                    self.version_combo.configure(values=labels, state="readonly")
+                    self.target_version_var.set(labels[0])
+                    self.version_loading = False
+                    self._append_log(f"Loaded {len(self.version_values)} Minecraft versions.")
+                elif kind == "versions_error":
+                    self.version_values.clear()
+                    self.version_combo.configure(
+                        values=("Use source version (recommended)",),
+                        state="readonly",
+                    )
+                    self.target_version_var.set("Use source version (recommended)")
+                    self.version_loading = False
+                    self._append_log(f"Minecraft version list unavailable: {payload}")
                 elif kind == "done":
                     success, errors, output = payload
                     self.running = False

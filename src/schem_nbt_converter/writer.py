@@ -193,6 +193,7 @@ def convert_file(
     include_air: bool = True,
     overwrite: bool = False,
     source_root: str | Path | None = None,
+    target_data_version: int | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> list[Path]:
     from .parsers import load_structure
@@ -204,6 +205,9 @@ def convert_file(
 
     notify(f"Reading {input_path.name}…")
     structure = load_structure(input_path)
+    data_version = structure.data_version if target_data_version is None else target_data_version
+    if target_data_version is not None and target_data_version != structure.data_version:
+        notify(f"Target DataVersion: {target_data_version} (source: {structure.data_version})")
     should_split = split_large and any(dim > max_size for dim in structure.size)
     chunks = split_structure(
         structure,
@@ -242,7 +246,7 @@ def convert_file(
     for index, (chunk, output_path) in enumerate(planned, start=1):
         filename = output_path.name
         notify(f"Writing {filename} ({index}/{len(chunks)})…")
-        build_vanilla_nbt(chunk, structure.data_version).save(output_path, gzipped=True, byteorder="big")
+        build_vanilla_nbt(chunk, data_version).save(output_path, gzipped=True, byteorder="big")
         outputs.append(output_path)
         manifest_chunks.append(
             {
@@ -259,7 +263,7 @@ def convert_file(
             "source": input_path.name,
             "source_size": list(structure.size),
             "source_offset": list(structure.source_offset),
-            "data_version": structure.data_version,
+            "data_version": data_version,
             "chunk_size": max_size,
             "coordinate_system": "origin relative to the complete structure, X/Y/Z axes",
             "chunks": manifest_chunks,

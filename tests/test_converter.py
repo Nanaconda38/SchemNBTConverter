@@ -68,6 +68,10 @@ def test_sponge_v2_to_vanilla(tmp_path: Path) -> None:
     assert len(result["palette"]) == 2
     assert len(result["blocks"]) == 2
 
+    target_files = convert_file(source, tmp_path / "target", target_data_version=3955)
+    target = nbtlib.load(target_files[0], gzipped=True)
+    assert int(target["DataVersion"]) == 3955
+
 
 def test_sponge_v3_block_entity(tmp_path: Path) -> None:
     source = tmp_path / "v3.schem"
