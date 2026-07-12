@@ -10,6 +10,7 @@ from litemapy import Schematic
 from nbtlib import Compound, List
 
 from .errors import ConversionError
+from .legacy import LEGACY_DATA_VERSION, legacy_block_state, read_nibble, read_schematica_mapping
 from .model import BlockRecord, BlockState, EntityRecord, Structure
 
 
@@ -210,6 +211,68 @@ def load_sponge(path: Path) -> Structure:
     )
 
 
+def load_legacy_schematic(path: Path) -> Structure:
+    nbt = _load_gzipped_nbt(path)
+    root = nbt.get("Schematic", nbt)
+    if not isinstance(root, Compound):
+        raise ConversionError("Missing or invalid legacy schematic root.")
+
+    width = _unsigned_short(root.get("Width", 0))
+    height = _unsigned_short(root.get("Height", 0))
+    length = _unsigned_short(root.get("Length", 0))
+    if min(width, height, length) <= 0:
+        raise ConversionError(f"Invalid legacy schematic dimensions: {width}×{height}×{length}.")
+
+    block_ids = root.get("Blocks")
+    metadata = root.get("Data")
+    if block_ids is None or metadata is None:
+        raise ConversionError("The .schematic file is missing its Blocks or Data array.")
+
+    volume = width * height * length
+    if len(block_ids) != volume or len(metadata) * 2 < volume:
+        raise ConversionError("The .schematic block arrays do not match its dimensions.")
+
+    add_blocks = root.get("AddBlocks")
+    if add_blocks is not None and len(add_blocks) * 2 < volume:
+        raise ConversionError("The .schematic AddBlocks array is too short.")
+
+    block_entities = root.get("TileEntities", root.get("BlockEntities", List[Compound]()))
+    be_by_pos: dict[tuple[int, int, int], Compound] = {}
+    for entry in block_entities:
+        pos, data = _extract_block_entity(entry)
+        be_by_pos[pos] = data
+
+    mapping = read_schematica_mapping(root)
+    blocks: dict[tuple[int, int, int], BlockRecord] = {}
+    for flat_index in range(volume):
+        block_id = int(block_ids[flat_index]) & 0xFF
+        if add_blocks is not None:
+            block_id |= read_nibble(add_blocks, flat_index) << 8
+        state = legacy_block_state(block_id, read_nibble(metadata, flat_index), mapping)
+        x = flat_index % width
+        z = (flat_index // width) % length
+        y = flat_index // (width * length)
+        pos = (x, y, z)
+        blocks[pos] = BlockRecord(pos, state, be_by_pos.get(pos))
+
+    entities = [_extract_entity(entry) for entry in root.get("Entities", List[Compound]())]
+    warnings = [
+        "Legacy .schematic block IDs and metadata were converted from the 1.12 format.",
+    ]
+    materials = str(root.get("Materials", "Alpha"))
+    if materials.lower() != "alpha":
+        warnings.append(f"Unexpected legacy Materials value: {materials}.")
+
+    return Structure(
+        size=(width, height, length),
+        data_version=int(root.get("DataVersion", LEGACY_DATA_VERSION)),
+        blocks=blocks,
+        entities=entities,
+        source_offset=(0, 0, 0),
+        warnings=warnings,
+    )
+
+
 def load_litematic(path: Path) -> Structure:
     try:
         schematic = Schematic.load(path)
@@ -283,6 +346,8 @@ def load_structure(path: str | Path) -> Structure:
     suffix = path.suffix.lower()
     if suffix == ".schem":
         return load_sponge(path)
+    if suffix == ".schematic":
+        return load_legacy_schematic(path)
     if suffix == ".litematic":
         return load_litematic(path)
     raise ConversionError(f"Unsupported file extension: {path.suffix}")

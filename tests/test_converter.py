@@ -7,7 +7,7 @@ from litemapy import BlockState as LiteBlockState
 from litemapy import Region, Schematic
 from nbtlib import ByteArray, Compound, File, Int, IntArray, List, Short, String
 
-from schem_nbt_converter.parsers import decode_varints, load_litematic, load_sponge
+from schem_nbt_converter.parsers import decode_varints, load_legacy_schematic, load_litematic, load_sponge
 from schem_nbt_converter.writer import convert_file
 
 
@@ -103,6 +103,55 @@ def test_sponge_v3_block_entity(tmp_path: Path) -> None:
     assert str(block["nbt"]["id"]) == "minecraft:chest"
     assert "CustomName" in block["nbt"]
     assert "x" not in block["nbt"]
+
+
+def test_legacy_schematic_to_vanilla(tmp_path: Path) -> None:
+    source = tmp_path / "legacy.schematic"
+    root = {
+        "Width": Short(2),
+        "Height": Short(1),
+        "Length": Short(1),
+        "Materials": String("Alpha"),
+        "Blocks": ByteArray([1, 35]),
+        "Data": ByteArray([-32]),  # stone metadata 0, red wool metadata 14
+        "TileEntities": List[Compound]([
+            Compound({"x": Int(0), "y": Int(0), "z": Int(0), "id": String("minecraft:chest")})
+        ]),
+        "Entities": List[Compound](),
+    }
+    save_file(source, root)
+
+    parsed = load_legacy_schematic(source)
+    assert parsed.data_version == 1343
+    assert parsed.blocks[(1, 0, 0)].state.name == "minecraft:red_wool"
+    assert parsed.blocks[(0, 0, 0)].nbt["id"] == "minecraft:chest"
+
+    files = convert_file(source, tmp_path / "out")
+    result = nbtlib.load(files[0], gzipped=True)
+    assert int(result["DataVersion"]) == 1343
+    assert {str(state["Name"]) for state in result["palette"]} == {
+        "minecraft:stone",
+        "minecraft:red_wool",
+    }
+
+
+def test_legacy_addblocks_uses_schematica_mapping(tmp_path: Path) -> None:
+    source = tmp_path / "custom.schematic"
+    root = {
+        "Width": Short(1),
+        "Height": Short(1),
+        "Length": Short(1),
+        "Blocks": ByteArray([0]),
+        "Data": ByteArray([0]),
+        "AddBlocks": ByteArray([1]),
+        "SchematicaMapping": Compound({"example:custom_block": Int(256)}),
+        "TileEntities": List[Compound](),
+        "Entities": List[Compound](),
+    }
+    save_file(source, root)
+
+    parsed = load_legacy_schematic(source)
+    assert parsed.blocks[(0, 0, 0)].state.name == "example:custom_block"
 
 
 def test_litematic_multiple_regions(tmp_path: Path) -> None:

@@ -558,7 +558,7 @@ class ConverterApp:
         self.file_count_var.set(f"{count} file" if count == 1 else f"{count} files")
 
     def _add_path(self, path: Path, source_root: Path | None = None) -> None:
-        if path.suffix.lower() not in {".schem", ".litematic"}:
+        if path.suffix.lower() not in {".schem", ".schematic", ".litematic"}:
             return
         resolved_path = path.expanduser().resolve()
         if not resolved_path.is_file():
@@ -585,8 +585,9 @@ class ConverterApp:
         paths = filedialog.askopenfilenames(
             title="Select Minecraft schematics",
             filetypes=[
-                ("Minecraft schematics", "*.schem *.litematic"),
+                ("Minecraft schematics", "*.schem *.schematic *.litematic"),
                 ("Sponge schematic", "*.schem"),
+                ("Legacy MCEdit schematic", "*.schematic"),
                 ("Litematica schematic", "*.litematic"),
                 ("All files", "*.*"),
             ],
@@ -657,7 +658,7 @@ class ConverterApp:
         if not jobs:
             messagebox.showwarning(
                 "No input files",
-                "Add at least one .schem or .litematic file before starting.",
+                "Add at least one .schem, .schematic, or .litematic file before starting.",
             )
             return
 

@@ -205,6 +205,8 @@ def convert_file(
 
     notify(f"Reading {input_path.name}…")
     structure = load_structure(input_path)
+    for warning in structure.warnings:
+        notify(f"Warning: {warning}")
     data_version = structure.data_version if target_data_version is None else target_data_version
     if target_data_version is not None and target_data_version != structure.data_version:
         notify(f"Target DataVersion: {target_data_version} (source: {structure.data_version})")

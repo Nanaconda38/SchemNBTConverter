@@ -7,15 +7,15 @@ from pathlib import Path
 from .errors import ConversionError
 from .writer import convert_file
 
-SUPPORTED_SUFFIXES = {".schem", ".litematic"}
+SUPPORTED_SUFFIXES = {".schem", ".schematic", ".litematic"}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="schem-nbt-converter",
-        description="Convert Minecraft .schem and .litematic files into vanilla .nbt structures.",
+        description="Convert Minecraft .schem, .schematic, and .litematic files into vanilla .nbt structures.",
     )
-    parser.add_argument("files", nargs="*", help="Files or folders containing .schem/.litematic files")
+    parser.add_argument("files", nargs="*", help="Files or folders containing Minecraft schematic files")
     parser.add_argument("-o", "--output", type=Path, help="Output directory")
     parser.add_argument("--max-size", type=int, default=48, help="Maximum chunk size (default: 48)")
     parser.add_argument("--no-split", action="store_true", help="Do not split oversized structures")
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
 
     jobs = collect_jobs(args.files)
     if not jobs:
-        print("Error: no .schem or .litematic files were found.", file=sys.stderr)
+        print("Error: no supported schematic files were found.", file=sys.stderr)
         return 2
 
     failures = 0

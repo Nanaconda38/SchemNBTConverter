@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "schem-nbt-converter"
 version = "1.2.0"
-description = "Batch converter for Minecraft .schem and .litematic files to vanilla .nbt structures"
+description = "Batch converter for Minecraft .schem, .schematic, and .litematic files to vanilla .nbt structures"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }

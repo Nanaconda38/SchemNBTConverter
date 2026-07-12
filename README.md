@@ -1,8 +1,9 @@
-# Schem & Litematic to NBT
+# Schem, Schematic & Litematic to NBT
 
 A cross-platform graphical and command-line tool for batch-converting Minecraft Java Edition files:
 
 - Sponge `.schem` files, versions 2 and 3;
+- legacy MCEdit `.schematic` files;
 - Litematica `.litematic` files, including multi-region schematics;
 - to vanilla Java Edition structure `.nbt` files.
 
@@ -27,7 +28,7 @@ The interface is entirely in English and includes:
 1. Install Python 3.10 or newer.
 2. Extract the project.
 3. Double-click `run_gui.bat`.
-4. Add `.schem` or `.litematic` files, select the output directory, and click **Start conversion**.
+4. Add `.schem`, `.schematic`, or `.litematic` files, select the output directory, and click **Start conversion**.
 
 The launcher detects `python`, `py -3`, or `python3`. It supports the Microsoft Store Python installation and creates an isolated `.venv-win` environment automatically.
 
@@ -104,13 +105,13 @@ Windows:
 
 ```powershell
 set PYTHONPATH=%CD%\src
-.venv-win\Scripts\python.exe -m schem_nbt_converter build1.schem build2.litematic -o .\output
+.venv-win\Scripts\python.exe -m schem_nbt_converter build1.schematic build2.litematic -o .\output
 ```
 
 Linux:
 
 ```bash
-PYTHONPATH="$PWD/src" .venv-linux/bin/python -m schem_nbt_converter build1.schem build2.litematic -o ./output
+PYTHONPATH="$PWD/src" .venv-linux/bin/python -m schem_nbt_converter build1.schematic build2.litematic -o ./output
 ```
 
 Main options:
@@ -127,7 +128,7 @@ Main options:
 Example:
 
 ```bash
-python -m schem_nbt_converter house.schem castle.litematic \
+python -m schem_nbt_converter house.schematic castle.litematic \
   -o ./nbt_output --max-size 48 --overwrite
 ```
 
@@ -183,7 +184,14 @@ For a split structure, use the generated manifest. Each chunk contains an `origi
 - v3 roots nested under `Schematic`;
 - block entities and entities.
 
-The older MCEdit `.schematic` format is not supported.
+### Legacy MCEdit `.schematic`
+
+- gzip-compressed or uncompressed legacy NBT;
+- `Blocks`, `Data`, and optional `AddBlocks` arrays;
+- common 1.12 block IDs and metadata, including colors, wood types, slabs, stairs, and block entities;
+- `SchematicaMapping` entries for custom names when present.
+
+Legacy files without a `DataVersion` are treated as Minecraft 1.12.2 (`DataVersion: 1343`).
 
 ### Litematica `.litematic`
 
@@ -222,6 +230,7 @@ Each NBT chunk has its own optimized palette.
 ## Known limitations
 
 - Block IDs are not upgraded or downgraded between Minecraft versions. The source `DataVersion` and block data are preserved.
+- Legacy custom block IDs require a `SchematicaMapping`; unsupported legacy metadata is converted on a best-effort basis.
 - Modded blocks remain in the NBT, but the corresponding mods must be installed when the structure is loaded.
 - Vanilla structure NBT does not store biomes, scheduled ticks, or every Sponge/Litematica-specific metadata field.
 - Sponge offsets have no direct vanilla structure equivalent. They are recorded in the split manifest.
